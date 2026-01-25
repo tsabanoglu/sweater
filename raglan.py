@@ -6,8 +6,9 @@ from typing import Dict, Optional, List
 
 from .constants import NECK_SIZES, CHEST_SIZES
 from .helpers import (
-    cast_on_from_neck, body_target_stitches, cm_to_rows, _split_neck,
-    _inc_rounds_needed, _schedule, _even,
+    body_target_stitches, cm_to_rows, _split_neck,
+    _inc_rounds_needed, _schedule, _even, _round_to_multiple,
+    calculate_short_rows,
 )
 from .yokeplan import YokePlan
 from .separator import SeparatorPlan
@@ -47,7 +48,7 @@ class Sweater:
     # construction knobs (reasonable defaults)
     raglan_lines: int = 4
     raglan_line_sts: int = 2
-    inc_every: int = 2                # every other round by default
+    inc_every: int = 2                # every other row by default
     underarm_each: Optional[int] = None  # CO per underarm (auto-calculated if None)
     underarm_cm: float = 2.5          # target underarm width in cm (if underarm_each not specified)
     body_length_cm: float = 40.0
@@ -58,6 +59,9 @@ class Sweater:
     use_short_rows: bool = False
     short_row_depth_cm: float = 5.0
     short_rows_with_raglan_incs: bool = True
+
+    # neckband (standard 8cm default)
+    neckband_cm: float = 8.0
 
     # --- derived props ---
     @property
@@ -94,14 +98,91 @@ class Sweater:
         # Minimum of 4 sts
         return max(4, sts)
 
+    @property
+    def neckband_rows(self) -> int:
+        """Number of rows for neckband (0 if no neckband)."""
+        if self.neckband_cm <= 0:
+            return 0
+        return cm_to_rows(self.neckband_cm, self.gauge_rows_per_cm)
+
+    # --- orchestration helpers (moved from CastOnPlan) ---
+    def _compute_neck_sts(self, neck_cm: float) -> int:
+        """Compute neck cast-on stitch count from circumference."""
+        raw = neck_cm * self.gauge_sts_per_cm
+        sts = _round_to_multiple(int(round(raw)), max(1, self.rib_multiple))
+        if sts < 60:
+            sts = 60
+        if sts % 2:
+            sts += 1
+        return sts
+
+    def _compute_initial_split_and_short_rows(self) -> tuple:
+        """
+        Compute the initial split and short row count.
+
+        Returns: (split, neck_sts, short_row_count)
+        """
+        neck_cm = NECK_SIZES.get(self.size, 38.0)
+        final_neck = self._compute_neck_sts(neck_cm)
+
+        # Calculate final split (after short rows)
+        final_split = _split_neck(
+            final_neck,
+            raglan_lines=self.raglan_lines,
+            raglan_line_sts=self.raglan_line_sts,
+        )
+
+        # If no short rows, return final split directly
+        if not (self.use_short_rows and self.gauge_rows_per_cm > 0 and self.short_row_depth_cm > 0):
+            return final_split, final_neck, 0
+
+        # Calculate short row count using centralized helper
+        sleeve_sts = min(final_split["sleeve_L"], final_split["sleeve_R"])
+        short_row_count = calculate_short_rows(
+            depth_cm=self.short_row_depth_cm,
+            gauge_rows_per_cm=self.gauge_rows_per_cm,
+            sleeve_sts=sleeve_sts,
+            back_sts=final_split["back"],
+            guard_sts=2,
+            max_short_rows=10,
+            min_back=4,
+            min_sleeve=4,
+        )
+
+        # Convert to pairs for split adjustment
+        pairs = short_row_count // 2
+
+        # Short rows add 4*pairs stitches via raglan increases
+        final_total_after_sr = final_neck + 4 * pairs
+        final_split_after_sr = _split_neck(
+            final_total_after_sr,
+            raglan_lines=self.raglan_lines,
+            raglan_line_sts=self.raglan_line_sts,
+        )
+
+        # Calculate initial split by working backwards
+        # Short rows add: 2*pairs to back, pairs to each sleeve, 0 to front
+        initial_split = {
+            "front": final_split_after_sr["front"],
+            "back": final_split_after_sr["back"] - 2 * pairs,
+            "sleeve_L": final_split_after_sr["sleeve_L"] - pairs,
+            "sleeve_R": final_split_after_sr["sleeve_R"] - pairs,
+        }
+
+        # Ensure minimums
+        MIN_BACK = 4
+        MIN_SLEEVE = 4
+        initial_split["back"] = max(initial_split["back"], MIN_BACK)
+        initial_split["sleeve_L"] = max(initial_split["sleeve_L"], MIN_SLEEVE)
+        initial_split["sleeve_R"] = max(initial_split["sleeve_R"], MIN_SLEEVE)
+
+        return initial_split, final_neck, short_row_count
+
     # --- build steps ---
-    def _build_yoke(self, split: Dict[str, int], neck_sts: int, short_row_rounds: int = 0) -> YokePlan:
+    def _build_yoke(self, split: Dict[str, int], neck_sts: int, short_row_count: int = 0) -> YokePlan:
         chest_cm = CHEST_SIZES.get(self.size, CHEST_SIZES["M"])
 
         # Targets & yoke math
-        # Note: target_body is the FINAL body circumference after underarm cast-ons
-        # The yoke should end with: target - (2 × underarm_sts_each) stitches
-        # Then after adding underarms, we reach the exact target
         target_body_final = body_target_stitches(chest_cm, self.gauge_sts_per_cm)
         target_body = target_body_final - (2 * self.underarm_sts_each)
 
@@ -113,21 +194,21 @@ class Sweater:
         sleeve_total_start = split["sleeve_L"] + split["sleeve_R"]
         per_round = self.raglan_lines  # = 4 (increases to body per regular round)
 
-        # When short rows are used, the first R rounds only increase back raglan lines
-        # Short row rounds: +2 sts to body, +2 sts to sleeves per round
-        # Regular rounds: +4 sts to body, +4 sts to sleeves per round
-        if short_row_rounds > 0:
+        # Short row count is now individual rows, convert to pairs for calculations
+        short_row_pairs = short_row_count // 2
+
+        if short_row_pairs > 0:
             # After short rows
-            body_after_sr = body_start + short_row_rounds * 2
-            sleeves_after_sr = sleeve_total_start + short_row_rounds * 2
+            body_after_sr = body_start + short_row_pairs * 2
+            sleeves_after_sr = sleeve_total_start + short_row_pairs * 2
 
             # Calculate remaining regular rounds needed
             remaining_for_body = _inc_rounds_needed(body_after_sr, target_body, per_round)
             remaining_for_sleeves = _inc_rounds_needed(sleeves_after_sr, target_sleeves_total, per_round)
             remaining_rounds = max(remaining_for_body, remaining_for_sleeves)
 
-            # Total increase rounds = SR rounds + remaining regular rounds
-            inc_rounds = short_row_rounds + remaining_rounds
+            # Total increase rounds = SR pairs + remaining regular rounds
+            inc_rounds = short_row_pairs + remaining_rounds
 
             # Final stitch counts
             body_end = body_after_sr + remaining_rounds * per_round
@@ -203,29 +284,28 @@ class Sweater:
             rib_multiple=self.rib_multiple,
         )
 
-    # ---- public API ----
+    # ---- accessors ----
     def build(self) -> Dict[str, object]:
         """Run the full pipeline and return all parts + maps."""
 
-        # 1) Cast-on plan: single source of truth for neck_sts + split
+        # 1) Compute split and short rows (orchestration moved here from CastOnPlan)
+        split, neck_sts, short_row_count = self._compute_initial_split_and_short_rows()
+
+        # 2) Create CastOnPlan with pre-computed values
         co = CastOnPlan(
             size=self.size,
-            gauge_sts_per_cm=self.gauge_sts_per_cm,
-            rib_multiple=self.rib_multiple,
+            neck_sts=neck_sts,
+            split=split,
+            short_row_count=short_row_count,
             raglan_lines=self.raglan_lines,
             raglan_line_sts=self.raglan_line_sts,
-            gauge_rows_per_cm=self.gauge_rows_per_cm,
-            use_short_rows=self.use_short_rows,
-            short_row_depth_cm=self.short_row_depth_cm,
+            rib_multiple=self.rib_multiple,
         )
-        split = co.split_map()              # {'front','back','sleeve_L','sleeve_R'}
-        neck_sts = co.neck_sts
-        R = co.short_row_rounds() if self.use_short_rows else 0
 
-        # 2) Yoke based on this (possibly adjusted) split
-        yoke = self._build_yoke(split, neck_sts, short_row_rounds=R)
+        # 3) Yoke based on this (possibly adjusted) split
+        yoke = self._build_yoke(split, neck_sts, short_row_count=short_row_count)
 
-        # 3) Separator, body, sleeves
+        # 4) Separator, body, sleeves
         sep = self._build_separator(yoke)
         sep_map = sep.stitch_map_at_separation()
         body = self._build_body(sep_map)
@@ -241,8 +321,8 @@ class Sweater:
             "sleeve": sleeve,
         }
 
-        # 4) Optional ShortRowPlan (back + shoulders only)
-        if self.use_short_rows:
+        # 5) Optional ShortRowPlan (back + shoulders only)
+        if self.use_short_rows and short_row_count > 0:
             sr = ShortRowPlan(
                 size=self.size,
                 gauge_rows_per_cm=self.gauge_rows_per_cm,
@@ -257,7 +337,7 @@ class Sweater:
 
     def render_text(self) -> str:
         parts = self.build()
-        
+
         co: CastOnPlan = parts["cast_on"]                 # type: ignore
         yoke: YokePlan = parts["yoke"]                    # type: ignore
         sep: SeparatorPlan = parts["separator"]           # type: ignore
@@ -279,6 +359,7 @@ class Sweater:
         # CAST-ON & MARKERS
         lines.append("\n— CAST-ON & MARKERS —")
         lines.append(co.cast_on_text(rib_label=rib_label))
+        lines.append(f"Work {self.neckband_rows} rows ({self.neckband_cm:.1f} cm) in rib for neckband.")
 
         # OPTIONAL: BACK-NECK SHORT ROWS (simple text using ShortRowPlan)
         if short_rows is not None:
@@ -289,6 +370,7 @@ class Sweater:
             hb = sr.half_back_sts
 
             lines.append("\n— BACK-NECK SHORT-ROW SHAPING —")
+            lines.append(f"(Raglan line = {self.raglan_line_sts} sts between markers)")
             if n == 0:
                 lines.append("No short rows planned for this size.")
             else:
@@ -297,28 +379,47 @@ class Sweater:
                     l = left_turns[i]
                     rs_num = 2 * i + 1
                     ws_num = 2 * i + 2
-                    lines.append(
-                        f"Short row {rs_num} (RS, beg at BOR / center back): "
-                        f"k {hb} to right back raglan marker, work raglan incs as established, "
-                        f"k {r} sts into right shoulder, turn (German short row)."
-                    )
-                    lines.append(
-                        f"Short row {ws_num} (WS, beg at BOR / center back): "
-                        f"p {hb} to left back raglan marker, work raglan incs as established, "
-                        f"p {l} sts into left shoulder, turn (German short row)."
-                    )
+
+                    if i == 0:
+                        # First pair: full instructions
+                        lines.append(
+                            f"Short row {rs_num} (RS): "
+                            f"From BOR, k to marker, M1R, k {self.raglan_line_sts} raglan sts, M1L, "
+                            f"k {r} sts into shoulder. Turn."
+                        )
+                        lines.append(
+                            f"Short row {ws_num} (WS): "
+                            f"P to marker (past BOR), M1R, p {self.raglan_line_sts} raglan sts, M1L, "
+                            f"p {l} sts into shoulder. Turn."
+                        )
+                    else:
+                        # Subsequent pairs: relative to last turn
+                        r_prev = right_turns[i - 1]
+                        l_prev = left_turns[i - 1]
+                        r_diff = r - r_prev
+                        l_diff = l - l_prev
+                        lines.append(
+                            f"Short row {rs_num} (RS): "
+                            f"K to marker, M1R, k {self.raglan_line_sts} raglan sts, M1L, "
+                            f"k {r_diff} sts past last RS turn. Turn."
+                        )
+                        lines.append(
+                            f"Short row {ws_num} (WS): "
+                            f"P to marker, M1R, p {self.raglan_line_sts} raglan sts, M1L, "
+                            f"p {l_diff} sts past last WS turn. Turn."
+                        )
 
                 # Calculate stitch counts after short rows
                 split = co.split_map()
-                R = co.short_row_rounds()
-                back_after = split["back"] + 2 * R
+                short_row_pairs = co.short_row_count // 2
+                back_after = split["back"] + 2 * short_row_pairs
                 front_after = split["front"]  # unchanged
-                sleeve_l_after = split["sleeve_L"] + R
-                sleeve_r_after = split["sleeve_R"] + R
+                sleeve_l_after = split["sleeve_L"] + short_row_pairs
+                sleeve_r_after = split["sleeve_R"] + short_row_pairs
                 total_after = back_after + front_after + sleeve_l_after + sleeve_r_after + (self.raglan_line_sts * 4)
 
                 lines.append("")
-                lines.append(f"After short rows ({n * 2} rows worked):")
+                lines.append(f"After short rows ({co.short_row_count} rows worked):")
                 lines.append(f"  - Back: {back_after} sts")
                 lines.append(f"  - Front: {front_after} sts")
                 lines.append(f"  - Sleeve left: {sleeve_l_after} sts")

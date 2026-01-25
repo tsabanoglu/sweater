@@ -128,7 +128,7 @@ class SleevePlan:
         Applies rib_multiple to cuff stitch count.
         Keys:
           - start_sts
-          - dec_rounds
+          - dec_rounds (number of decrease rounds)
           - cuff_sts (rounded to rib_multiple, kept >= 0 and even-friendly)
         """
         k = self.dec_count

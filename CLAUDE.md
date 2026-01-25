@@ -27,7 +27,8 @@
   sep: SeparatorPlan = parts['separator']
   print(sep.summary())
   ```
-- Short-row flow: `CastOnPlan` uses `ShortRowPlan` to compute the number of short-row rounds and then "rewinds" the initial split. If altering short-row logic, update both `shortrows.py` and the logic in `caston.py` that relies on `ShortRowPlan.short_row_rounds`.
+- Short-row flow: `Sweater.build()` orchestrates short-row calculation using `calculate_short_rows()` from `helpers.py` (single source of truth). It computes the initial split, then passes pre-computed values to `CastOnPlan` (which is now a simple data holder). `ShortRowPlan` also uses `calculate_short_rows()` internally for consistency.
+- Terminology: "rounds" for circular knitting (increase rounds, dec rounds), "rows" for short rows (worked flat). `short_row_count` returns individual rows (not RS/WS pairs).
 - Scheduling booleans: several components produce boolean schedules (e.g. `_schedule`, `SleevePlan.schedule_rows()`); new shaping logic should emit the same boolean list format (index -> whether that row is an inc/dec).
 
 # Developer workflows
@@ -44,10 +45,12 @@
 
 # Files to reference when coding
 
-- `raglan.py` — orchestrator / `Sweater` API and `render_text()` example output.
-- `caston.py` — neck split + short-row interaction (critical for marker placement).
-- `helpers.py` — shared numeric helpers and conversions.
-- `separator.py`, `yokeplan.py`, `sleeveplan.py`, `bodyplan.py`, `shortrows.py` — plan data structures and formatting helpers.
+- `raglan.py` — orchestrator / `Sweater` API, short-row orchestration, and `render_text()` output.
+- `caston.py` — data holder for neck stitch count and marker split.
+- `helpers.py` — shared numeric helpers, conversions, and `calculate_short_rows()` (single source of truth for short-row count).
+- `shortrows.py` — `ShortRowPlan` for generating short-row turn positions and instructions.
+- `separator.py`, `yokeplan.py`, `sleeveplan.py`, `bodyplan.py` — plan data structures and formatting helpers.
+- `sample_output.txt` — generated sample pattern output (run `python -m sweater.test` to regenerate).
 
 # Safety notes
 

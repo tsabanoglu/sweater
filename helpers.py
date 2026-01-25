@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Literal, Dict, List, Tuple
+from typing import Dict, List, Tuple
 import math
 
 
@@ -129,9 +129,6 @@ def sts_to_cm(sts: int, gauge_sts_per_cm: float) -> float:
         raise ValueError("Stitch count and gauge must be positive.")
     return sts / gauge_sts_per_cm
 
-from typing import Dict
-
-
 def adjust_split_for_short_rows(
     base_split: Dict[str, int],
     rounds: int,
@@ -195,6 +192,74 @@ def adjust_split_for_short_rows(
     }
 
 
+def calculate_short_rows(
+    depth_cm: float,
+    gauge_rows_per_cm: float,
+    sleeve_sts: int,
+    back_sts: int,
+    guard_sts: int = 2,
+    max_short_rows: int = 10,  # individual rows, not pairs
+    min_back: int = 4,
+    min_sleeve: int = 4,
+) -> int:
+    """
+    Calculate number of short rows (individual RS/WS rows, not pairs).
+    Single source of truth for both CastOnPlan and ShortRowPlan.
+
+    Parameters
+    ----------
+    depth_cm : float
+        Target depth of short row shaping in cm.
+    gauge_rows_per_cm : float
+        Row gauge (rows per cm).
+    sleeve_sts : int
+        Stitches in the sleeve section (minimum of left/right).
+    back_sts : int
+        Stitches in the back section.
+    guard_sts : int
+        Stitches to leave before front raglan marker.
+    max_short_rows : int
+        Maximum individual rows (not pairs) allowed.
+    min_back : int
+        Minimum back stitches after adjustment.
+    min_sleeve : int
+        Minimum sleeve stitches after adjustment.
+
+    Returns
+    -------
+    int
+        Number of individual short rows (RS + WS), not pairs.
+    """
+    if depth_cm <= 0 or gauge_rows_per_cm <= 0:
+        return 0
+
+    # Calculate rows from depth (individual rows, must be even for RS/WS pairs)
+    rows_from_depth = int(round(depth_cm * gauge_rows_per_cm))
+    if rows_from_depth % 2 == 1:
+        rows_from_depth -= 1
+    rows_from_depth = max(rows_from_depth, 2)
+
+    # Cap at maximum
+    rows = min(rows_from_depth, max_short_rows)
+
+    # Check sleeve constraint: need ~2 sts per turn minimum
+    usable_sleeve = sleeve_sts - guard_sts
+    if usable_sleeve > 0:
+        max_rows_from_sleeve = (usable_sleeve // 2) * 2  # pairs * 2 = individual rows
+        rows = min(rows, max_rows_from_sleeve)
+
+    # Check back constraint: after R/2 pairs, back gains R sts (2 per pair from raglan incs)
+    # Initial back = back_sts - R (for R/2 pairs)
+    # So we need: back_sts - R >= min_back => R <= back_sts - min_back
+    pairs = rows // 2
+    max_pairs_from_back = (back_sts - min_back) // 2
+    if pairs > max_pairs_from_back:
+        pairs = max(1, max_pairs_from_back)
+        rows = pairs * 2
+
+    return max(rows, 2)  # at least 1 pair = 2 individual rows
+
+
 __all__ = [
     "cast_on_from_neck",
     "body_target_stitches",
@@ -210,4 +275,5 @@ __all__ = [
     "cm_to_sts",
     "sts_to_cm",
     "adjust_split_for_short_rows",
+    "calculate_short_rows",
 ]

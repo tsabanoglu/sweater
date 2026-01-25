@@ -43,14 +43,14 @@ The library is organized around immutable plan objects that each handle one stag
 
 | Module | Class | Purpose |
 |--------|-------|---------|
-| `caston.py` | `CastOnPlan` | Neck stitch count and initial marker split |
-| `shortrows.py` | `ShortRowPlan` | Back-neck short-row shaping |
+| `caston.py` | `CastOnPlan` | Data holder for neck stitch count and marker split |
+| `shortrows.py` | `ShortRowPlan` | Back-neck short-row turn positions and instructions |
 | `yokeplan.py` | `YokePlan` | Raglan increase schedule and stitch counts |
 | `separator.py` | `SeparatorPlan` | Split body/sleeves, underarm cast-on |
 | `bodyplan.py` | `BodyPlan` | Body length and optional waist shaping |
 | `sleeveplan.py` | `SleevePlan` | Sleeve decreases from underarm to cuff |
 
-The `Sweater` class in `raglan.py` is the orchestrator that wires these plans together and produces the final pattern via `render_text()`.
+The `Sweater` class in `raglan.py` is the orchestrator that wires these plans together, handles short-row calculation, and produces the final pattern via `render_text()`.
 
 Shared numeric helpers (gauge conversions, rounding, spacing) live in `helpers.py`. Size constants (neck and chest circumferences) are defined in `constants.py`.
 
@@ -64,6 +64,7 @@ The `Sweater` class accepts the following parameters:
 | `rows_per_10cm` | required | Row gauge per 10 cm |
 | `size` | required | Size key (XS, S, M, L, XL, XXL, XXXL) |
 | `rib_pref` | 1 | Ribbing style: 0=none, 1=1x1, 2=2x2 |
+| `neckband_cm` | 8.0 | Neckband length in cm (worked in rib) |
 | `body_length_cm` | 40.0 | Body length from underarm to hem |
 | `sleeve_length_cm` | 45.0 | Sleeve length from underarm to cuff |
 | `use_short_rows` | False | Enable back-neck short-row shaping |

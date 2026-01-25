@@ -2,6 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
+from .helpers import calculate_short_rows
+
 
 @dataclass(frozen=True)
 class ShortRowPlan:
@@ -9,7 +11,7 @@ class ShortRowPlan:
     German short-row back-neck shaping for a top-down raglan.
 
     Used in two ways:
-    - to *preview* how many short-row rounds we’ll have (for Option D)
+    - to *preview* how many short-row rounds we'll have (for Option D)
     - to render human-readable short-row instructions later.
 
     Assumptions:
@@ -26,6 +28,7 @@ class ShortRowPlan:
 
     short_row_depth_cm: float = 5.0
     guard_sts_before_front_raglan: int = 2
+    max_short_rows: int = 10  # max individual rows (not pairs)
 
     # ---------- basic props ----------
 
@@ -35,47 +38,33 @@ class ShortRowPlan:
         return self.back_sts // 2
 
     @property
-    def short_row_depth_rows(self) -> int:
-        """Total vertical depth in rows (forced even: RS+WS pairs)."""
-        rows = int(round(self.short_row_depth_cm * self.gauge_rows_per_cm))
-        if rows % 2 == 1:
-            rows -= 1
-        return max(rows, 2)
-
-    @property
-    def max_rounds_by_depth(self) -> int:
-        """Max RS/WS short-row pairs allowed by vertical depth."""
-        return self.short_row_depth_rows // 2
+    def _max_pairs(self) -> int:
+        """
+        Maximum number of short-row pairs, using the centralized calculation.
+        """
+        sleeve_sts = min(self.right_shoulder_sts, self.left_shoulder_sts)
+        individual_rows = calculate_short_rows(
+            depth_cm=self.short_row_depth_cm,
+            gauge_rows_per_cm=self.gauge_rows_per_cm,
+            sleeve_sts=sleeve_sts,
+            back_sts=self.back_sts,
+            guard_sts=self.guard_sts_before_front_raglan,
+            max_short_rows=self.max_short_rows,
+        )
+        return individual_rows // 2
 
     # ---------- spacing helpers ----------
 
-    def _max_rounds_for_span(self, span_sts: int) -> int:
-        """
-        How many short-row rounds can we reasonably fit into this shoulder span
-        (back raglan → front raglan), without turns being 1 st apart.
-        """
-        usable_total = span_sts - self.guard_sts_before_front_raglan
-        if usable_total <= 2:
-            return 0
-
-        max_rounds_by_stitches = usable_total // 2  # ~2 sts per turn minimum
-        n = min(self.max_rounds_by_depth, max_rounds_by_stitches)
-        return max(n, 1)
-
-    def _turn_positions_for_span(self, span_sts: int) -> List[int]:
+    def _turn_positions_for_span(self, span_sts: int, max_pairs: int) -> List[int]:
         """Turn positions measured from the back raglan marker."""
         usable_total = span_sts - self.guard_sts_before_front_raglan
-        if usable_total <= 0:
+        if usable_total <= 0 or max_pairs <= 0:
             return []
 
-        rounds = self._max_rounds_for_span(span_sts)
-        if rounds <= 0:
-            return []
-
-        step_base = usable_total / (rounds + 1)
+        step_base = usable_total / (max_pairs + 1)
         turns: List[int] = []
 
-        for i in range(1, rounds + 1):
+        for i in range(1, max_pairs + 1):
             candidate = int(round(i * step_base))
             candidate = max(1, min(candidate, usable_total))
             turns.append(candidate)
@@ -92,13 +81,17 @@ class ShortRowPlan:
     # ---------- per-shoulder turns ----------
 
     def right_shoulder_turns(self) -> List[int]:
-        return self._turn_positions_for_span(self.right_shoulder_sts)
+        return self._turn_positions_for_span(self.right_shoulder_sts, self._max_pairs)
 
     def left_shoulder_turns(self) -> List[int]:
-        return self._turn_positions_for_span(self.left_shoulder_sts)
+        return self._turn_positions_for_span(self.left_shoulder_sts, self._max_pairs)
 
-    # Convenience: number of short-row rounds we’ll actually do
+    # Convenience: number of individual short rows (RS + WS, not pairs)
     @property
-    def short_row_rounds(self) -> int:
-        # one RS turn per right_turns entry, one WS per left
-        return min(len(self.right_shoulder_turns()), len(self.left_shoulder_turns()))
+    def short_row_count(self) -> int:
+        """
+        Number of individual short rows (RS + WS rows, not RS/WS pairs).
+        For example, 5 RS turns + 5 WS turns = 10 individual rows.
+        """
+        pairs = min(len(self.right_shoulder_turns()), len(self.left_shoulder_turns()))
+        return pairs * 2  # individual rows, not pairs
