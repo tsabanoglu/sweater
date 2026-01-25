@@ -308,6 +308,23 @@ class Sweater:
                         f"p {l} sts into left shoulder, turn (German short row)."
                     )
 
+                # Calculate stitch counts after short rows
+                split = co.split_map()
+                R = co.short_row_rounds()
+                back_after = split["back"] + 2 * R
+                front_after = split["front"]  # unchanged
+                sleeve_l_after = split["sleeve_L"] + R
+                sleeve_r_after = split["sleeve_R"] + R
+                total_after = back_after + front_after + sleeve_l_after + sleeve_r_after + (self.raglan_line_sts * 4)
+
+                lines.append("")
+                lines.append(f"After short rows ({n * 2} rows worked):")
+                lines.append(f"  - Back: {back_after} sts")
+                lines.append(f"  - Front: {front_after} sts")
+                lines.append(f"  - Sleeve left: {sleeve_l_after} sts")
+                lines.append(f"  - Sleeve right: {sleeve_r_after} sts")
+                lines.append(f"  - Total: {total_after} sts")
+
         # RAGLAN YOKE (explicit increase instruction)
         lines.append("\n— RAGLAN YOKE —")
         lines.append(

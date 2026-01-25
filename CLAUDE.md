@@ -1,4 +1,3 @@
-<!-- copilot instructions for AI coding agents -->
 # Repo overview & quick start
 
 - **Purpose**: This small library generates top-down raglan sweater knitting plans (cast-on, yoke, separation, body, sleeves, optional short-rows) and renders a human-readable pattern via `Sweater.render_text()`.
@@ -54,10 +53,3 @@
 
 - Inputs are sometimes asserted (e.g. `_split_neck`), and several helpers raise `ValueError` on invalid gauge/length. Preserve those guards.
 - Avoid changing public names or expected dict keys returned by methods like `stitch_map_at_separation()` and `build()` since other parts rely on them.
-
-# If you need clarification
-
-- Ask the maintainer for desired textual format changes to `render_text()` and any changes to the demo `test.py`. I can update examples or unit-check outputs on request.
-
----
-*Generated/updated by an AI agent — please review for tone and completeness.*

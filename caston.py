@@ -253,14 +253,25 @@ class CastOnPlan:
         ]
 
     def cast_on_text(self, rib_label: str = "1x1") -> str:
-        segs = self.marker_segments()
+        split = self.split_map()
+        back_left = split["back"] // 2
+        back_right = split["back"] - back_left
+        rl = self.raglan_line_sts
+
         lines = [
             f"Cast on {self.neck_sts} sts. Work {rib_label} rib for collar (optional).",
-            "Place markers and join to work in the round in this order:",
+            "Place BOR (beginning of round) marker, then place markers as follows:",
+            f"  - Back left: {back_left} sts, PM",
+            f"  - Raglan: {rl} sts, PM",
+            f"  - Sleeve left: {split['sleeve_L']} sts, PM",
+            f"  - Raglan: {rl} sts, PM",
+            f"  - Front: {split['front']} sts, PM",
+            f"  - Raglan: {rl} sts, PM",
+            f"  - Sleeve right: {split['sleeve_R']} sts, PM",
+            f"  - Raglan: {rl} sts, PM",
+            f"  - Back right: {back_right} sts (to BOR)",
+            "Join to work in the round. Raglan stitches are worked straight between markers.",
         ]
-        for name, n in segs:
-            lines.append(f"  - {name.replace('_', ' ').capitalize()}: {n} sts")
-        lines.append("Raglan lines are worked straight between markers.")
         return "\n".join(lines)
 
     def summary(self) -> str:
