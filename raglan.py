@@ -55,6 +55,9 @@ class Sweater:
     sleeve_length_cm: float = 45.0
     sleeve_cuff_rows_cm: float = 6.0  # rib length at cuff
 
+    # optional override: skip neck-size calculation and use this count directly
+    neck_sts_override: Optional[int] = None
+
     # short-row controls
     use_short_rows: bool = False
     short_row_depth_cm: float = 5.0
@@ -122,8 +125,11 @@ class Sweater:
 
         Returns: (split, neck_sts, short_row_count)
         """
-        neck_cm = NECK_SIZES.get(self.size, 38.0)
-        final_neck = self._compute_neck_sts(neck_cm)
+        if self.neck_sts_override is not None:
+            final_neck = self.neck_sts_override
+        else:
+            neck_cm = NECK_SIZES.get(self.size, 38.0)
+            final_neck = self._compute_neck_sts(neck_cm)
 
         # Calculate final split (after short rows)
         final_split = _split_neck(
