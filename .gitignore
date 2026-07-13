@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 .env
 my_pattern.py
+my_pattern.txt
+notes.md
