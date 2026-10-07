@@ -4,10 +4,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, List
 
-from .constants import NECK_SIZES, CHEST_SIZES
+from .constants import NECK_SIZES, CHEST_SIZES, BODY_FIT_EASE, BODY_FIT_INC_ROUNDS, COMBINED_PHASE_DEPTH_CM
 from .helpers import (
     body_target_stitches, cm_to_rows, _split_neck,
-    _inc_rounds_needed, _schedule, _even, _round_to_multiple,
+    _inc_rounds_needed, _schedule, _panel_schedule, _even, _round_to_multiple,
     calculate_short_rows,
 )
 from .yokeplan import YokePlan
@@ -52,6 +52,7 @@ class Sweater:
     underarm_each: Optional[int] = None  # CO per underarm (auto-calculated if None)
     underarm_cm: float = 2.5          # target underarm width in cm (if underarm_each not specified)
     body_length_cm: float = 40.0
+    body_fit: str = "straight"        # "straight" (tube), "fitted" (1-2 inc rounds), "loose" (7-9 inc rounds)
     sleeve_length_cm: float = 45.0
     sleeve_cuff_rows_cm: float = 6.0  # rib length at cuff
 
@@ -142,94 +143,109 @@ class Sweater:
         if not (self.use_short_rows and self.gauge_rows_per_cm > 0 and self.short_row_depth_cm > 0):
             return final_split, final_neck, 0
 
-        # Calculate short row count using centralized helper
-        sleeve_sts = min(final_split["sleeve_L"], final_split["sleeve_R"])
-        short_row_count = calculate_short_rows(
-            depth_cm=self.short_row_depth_cm,
-            gauge_rows_per_cm=self.gauge_rows_per_cm,
-            sleeve_sts=sleeve_sts,
-            back_sts=final_split["back"],
-            guard_sts=2,
-            max_short_rows=10,
-            min_back=4,
-            min_sleeve=4,
-        )
-
-        # Convert to pairs for split adjustment
-        pairs = short_row_count // 2
-
-        # Short rows add 4*pairs stitches via raglan increases
-        final_total_after_sr = final_neck + 4 * pairs
-        final_split_after_sr = _split_neck(
-            final_total_after_sr,
-            raglan_lines=self.raglan_lines,
-            raglan_line_sts=self.raglan_line_sts,
-        )
-
-        # Calculate initial split by working backwards
-        # Short rows add: 2*pairs to back, pairs to each sleeve, 0 to front
-        initial_split = {
-            "front": final_split_after_sr["front"],
-            "back": final_split_after_sr["back"] - 2 * pairs,
-            "sleeve_L": final_split_after_sr["sleeve_L"] - pairs,
-            "sleeve_R": final_split_after_sr["sleeve_R"] - pairs,
-        }
-
-        # Ensure minimums
         MIN_BACK = 4
         MIN_SLEEVE = 4
-        initial_split["back"] = max(initial_split["back"], MIN_BACK)
-        initial_split["sleeve_L"] = max(initial_split["sleeve_L"], MIN_SLEEVE)
-        initial_split["sleeve_R"] = max(initial_split["sleeve_R"], MIN_SLEEVE)
 
-        return initial_split, final_neck, short_row_count
+        # The short-row count depends on the post-short-row split (back/sleeve
+        # sizes), but that split depends on the short-row count. Iterate to a
+        # fixed point so the count used here to size the initial split is the
+        # SAME count ShortRowPlan will later use to place turns - otherwise
+        # the two can disagree (e.g. split math assumes 5 pairs while the
+        # rendered turns only fit 4, so stitch totals don't add up).
+        pairs = 0
+        initial_split = final_split
+        for _ in range(5):
+            final_total_after_sr = final_neck + 4 * pairs
+            final_split_after_sr = _split_neck(
+                final_total_after_sr,
+                raglan_lines=self.raglan_lines,
+                raglan_line_sts=self.raglan_line_sts,
+            )
+
+            # Short rows add: 2*pairs to back, pairs to each sleeve, 0 to front
+            initial_split = {
+                "front": final_split_after_sr["front"],
+                "back": max(final_split_after_sr["back"] - 2 * pairs, MIN_BACK),
+                "sleeve_L": max(final_split_after_sr["sleeve_L"] - pairs, MIN_SLEEVE),
+                "sleeve_R": max(final_split_after_sr["sleeve_R"] - pairs, MIN_SLEEVE),
+            }
+
+            # Recompute short row count from these candidate numbers: sleeve_sts
+            # is the pre-short-row (initial) shoulder width, since that's the
+            # actual span turns get placed within; back_sts is the post-short-row
+            # (final) back width, since that's what calculate_short_rows checks
+            # against min_back. This matches exactly what ShortRowPlan uses.
+            sleeve_sts = min(initial_split["sleeve_L"], initial_split["sleeve_R"])
+            short_row_count = calculate_short_rows(
+                depth_cm=self.short_row_depth_cm,
+                gauge_rows_per_cm=self.gauge_rows_per_cm,
+                sleeve_sts=sleeve_sts,
+                back_sts=final_split_after_sr["back"],
+                guard_sts=2,
+                max_short_rows=10,
+                min_back=MIN_BACK,
+                min_sleeve=MIN_SLEEVE,
+            )
+            new_pairs = short_row_count // 2
+
+            if new_pairs == pairs:
+                break
+            pairs = new_pairs
+
+        return initial_split, final_neck, pairs * 2
 
     # --- build steps ---
-    def _build_yoke(self, split: Dict[str, int], neck_sts: int, short_row_count: int = 0) -> YokePlan:
+    def _target_body_final_sts(self) -> int:
+        """Full bust circumference target in stitches (incl. underarms), from size + gauge alone."""
         chest_cm = CHEST_SIZES.get(self.size, CHEST_SIZES["M"])
+        return body_target_stitches(chest_cm, self.gauge_sts_per_cm)
 
+    def _build_yoke(self, split: Dict[str, int], neck_sts: int, short_row_count: int = 0) -> YokePlan:
         # Targets & yoke math
-        target_body_final = body_target_stitches(chest_cm, self.gauge_sts_per_cm)
+        target_body_final = self._target_body_final_sts()
         target_body = target_body_final - (2 * self.underarm_sts_each)
-
-        target_sleeves_total = int(round(0.60 * target_body_final))
-        if target_sleeves_total % 2:
-            target_sleeves_total += 1
 
         body_start = split["front"] + split["back"]
         sleeve_total_start = split["sleeve_L"] + split["sleeve_R"]
-        per_round = self.raglan_lines  # = 4 (increases to body per regular round)
+        per_round = self.raglan_lines  # sts added to a panel pair per active increase round
 
         # Short row count is now individual rows, convert to pairs for calculations
         short_row_pairs = short_row_count // 2
+        body_after_sr = body_start + short_row_pairs * 2
+        sleeves_after_sr = sleeve_total_start + short_row_pairs * 2
 
-        if short_row_pairs > 0:
-            # After short rows
-            body_after_sr = body_start + short_row_pairs * 2
-            sleeves_after_sr = sleeve_total_start + short_row_pairs * 2
+        # Phase 1 - combined (body + sleeves increase together): its length is
+        # driven by a realistic physical depth (COMBINED_PHASE_DEPTH_CM),
+        # converted to rounds via this pattern's own row gauge - not by
+        # chasing a sleeve stitch-count target. Sleeve width is whatever this
+        # phase naturally produces - it is not solved for.
+        combined_phase_rows = cm_to_rows(COMBINED_PHASE_DEPTH_CM, self.gauge_rows_per_cm)
+        combined_rounds = combined_phase_rows // self.inc_every
 
-            # Calculate remaining regular rounds needed
-            remaining_for_body = _inc_rounds_needed(body_after_sr, target_body, per_round)
-            remaining_for_sleeves = _inc_rounds_needed(sleeves_after_sr, target_sleeves_total, per_round)
-            remaining_rounds = max(remaining_for_body, remaining_for_sleeves)
+        sleeve_inc_rounds = combined_rounds
+        sleeves_total_end = sleeves_after_sr + sleeve_inc_rounds * per_round
+        body_after_combined = body_after_sr + combined_rounds * per_round
 
-            # Total increase rounds = SR pairs + remaining regular rounds
-            inc_rounds = short_row_pairs + remaining_rounds
+        # Phase 2 - body only (sleeves held): uncapped, runs however many
+        # rounds it takes to reach the true bust target. This is what scales
+        # with size - bigger sizes simply need more of these rounds.
+        body_only_rounds = _inc_rounds_needed(body_after_combined, target_body, per_round)
+        body_inc_rounds = combined_rounds + body_only_rounds
+        body_end = body_after_combined + body_only_rounds * per_round
 
-            # Final stitch counts
-            body_end = body_after_sr + remaining_rounds * per_round
-            sleeves_total_end = sleeves_after_sr + remaining_rounds * per_round
-        else:
-            # No short rows: standard calculation
-            inc_rounds = max(
-                _inc_rounds_needed(body_start, target_body, per_round),
-                _inc_rounds_needed(sleeve_total_start, target_sleeves_total, per_round),
-            )
-            body_end = body_start + inc_rounds * per_round
-            sleeves_total_end = sleeve_total_start + inc_rounds * per_round
+        regular_rounds = body_inc_rounds  # total distinct schedule rounds (body runs the whole way)
 
-        yoke_rows = inc_rounds * self.inc_every
-        schedule = _schedule(inc_rounds, self.inc_every)
+        # Total increase-round count (SR pairs + regular rounds); kept for
+        # callers that want a round count rather than a row count.
+        inc_rounds = short_row_pairs + regular_rounds
+
+        # Physical rows from end of neckband to separation: short rows are
+        # always 2 physical rows per pair (RS+WS), independent of inc_every -
+        # only the regular increase rounds scale by inc_every.
+        yoke_rows = short_row_count + regular_rounds * self.inc_every
+        schedule = _schedule(regular_rounds, self.inc_every)
+        body_schedule = _panel_schedule(body_inc_rounds, regular_rounds, self.inc_every)
+        sleeve_schedule = _panel_schedule(sleeve_inc_rounds, regular_rounds, self.inc_every)
 
         return YokePlan(
             size=self.size,
@@ -243,6 +259,10 @@ class Sweater:
             body_sts_end_yoke=body_end,
             sleeve_sts_end_yoke=sleeves_total_end,  # TOTAL (both sleeves)
             schedule=schedule,
+            body_inc_rounds=body_inc_rounds,
+            sleeve_inc_rounds=sleeve_inc_rounds,
+            body_schedule=body_schedule,
+            sleeve_schedule=sleeve_schedule,
             target={"body": target_body, "sleeve": sleeves_total_end // 2},
         )
 
@@ -257,15 +277,39 @@ class Sweater:
 
     def _build_body(self, sep_map: Dict[str, int]) -> BodyPlan:
         rows = cm_to_rows(self.body_length_cm, self.gauge_rows_per_cm)
+        body_start = sep_map["body_total"]
+        inc_per_round = 4  # evenly spaced at the two underarm "seam" points
+
+        # Mandatory catch-up: if the yoke's depth cap left the body short of
+        # full bust circumference, make up the difference here first,
+        # regardless of fit (even "straight" must still reach true bust size).
+        target_body_final = self._target_body_final_sts()
+        mandatory_rounds = _inc_rounds_needed(body_start, target_body_final, inc_per_round)
+        body_after_mandatory = body_start + mandatory_rounds * inc_per_round
+
+        # Stylistic hem ease, on top of true bust circumference.
+        ease = BODY_FIT_EASE.get(self.body_fit, 0.0)
+        min_rounds, max_rounds = BODY_FIT_INC_ROUNDS.get(self.body_fit, (0, 0))
+
+        ease_target = int(round(body_after_mandatory * (1 + ease)))
+        if ease_target % 2:
+            ease_target += 1
+
+        ease_rounds = _inc_rounds_needed(body_after_mandatory, ease_target, inc_per_round)
+        ease_rounds = max(min_rounds, min(max_rounds, ease_rounds))
+        hem_circ_sts = body_after_mandatory + ease_rounds * inc_per_round
+
         return BodyPlan(
             size=self.size,
-            body_total_sts=sep_map["body_total"],
-            hem_circ_sts=sep_map["body_total"],  # can add shaping later
+            body_total_sts=body_start,
+            hem_circ_sts=hem_circ_sts,
             length_rows=rows,
             gauge_rows_per_cm=self.gauge_rows_per_cm,
             gauge_sts_per_cm=self.gauge_sts_per_cm,
+            fit=self.body_fit,
             rib_multiple=self.rib_multiple,
             dec_schedule_rows=None,
+            inc_per_round=inc_per_round,
         )
 
     def _build_sleeve(self, sep_map: Dict[str, int]) -> SleevePlan:
@@ -336,6 +380,7 @@ class Sweater:
                 right_shoulder_sts=split["sleeve_R"],
                 left_shoulder_sts=split["sleeve_L"],
                 short_row_depth_cm=self.short_row_depth_cm,
+                precomputed_pairs=short_row_count // 2,
             )
             parts["short_rows"] = sr
 
@@ -434,10 +479,20 @@ class Sweater:
 
         # RAGLAN YOKE (explicit increase instruction)
         lines.append("\n— RAGLAN YOKE —")
+        both_rounds = min(yoke.body_inc_rounds, yoke.sleeve_inc_rounds)
+        extra_rounds = max(yoke.body_inc_rounds, yoke.sleeve_inc_rounds) - both_rounds
         lines.append(
-            f"Work raglan increases every {self.inc_every} round(s) "
-            f"for {yoke.inc_rounds} increase rounds (≈ {yoke.yoke_rows} rows total)."
+            f"Work raglan increases (body and sleeves) every {self.inc_every} round(s) "
+            f"for {both_rounds} increase rounds."
         )
+        if extra_rounds > 0:
+            extra_side = "body" if yoke.body_inc_rounds > yoke.sleeve_inc_rounds else "sleeves"
+            held_side = "sleeve" if extra_side == "body" else "body"
+            lines.append(
+                f"Then continue raglan increases on the {extra_side} only (hold {held_side} stitches) "
+                f"every {self.inc_every} round(s) for {extra_rounds} more increase rounds."
+            )
+        lines.append(f"(≈ {yoke.yoke_rows} rows total.)")
 
         # SEPARATION
         lines.append("\n— SEPARATION —")
@@ -445,11 +500,19 @@ class Sweater:
 
         # BODY
         lines.append("\n— BODY —")
-        lines.append(f"Work body {body.length_rows} rows (≈ {self.body_length_cm:.1f} cm).")
+        lines.append(f"Work body {body.length_rows} rows (≈ {self.body_length_cm:.1f} cm), fit: {self.body_fit}.")
         lines.append(
             f"Body after separation: {sep_map['body_total']} sts "
             f"(front {sep_map['body_front']} / back {sep_map['body_back']})."
         )
+        body_m = body.stitch_map_end()
+        if body_m["inc_rounds"] > 0:
+            lines.append(
+                f"Increase to hem {body_m['hem_sts']} sts via {body_m['inc_rounds']} inc rounds "
+                f"({body.inc_per_round} sts per round, evenly spaced at the underarm seam points)."
+            )
+        else:
+            lines.append("Work body straight to hem (no shaping).")
 
         # SLEEVES
         lines.append("\n— SLEEVES —")

@@ -18,7 +18,11 @@ class YokePlan:
     yoke_rows: int
     body_sts_end_yoke: int  # back and front sts (excluding sleeves) at end of yoke
     sleeve_sts_end_yoke: int  # total sleeve sts at end of yoke (not per sleeve!!!)
-    schedule: List[bool]
+    schedule: List[bool]  # True on any round with an increase (body and/or sleeve)
+    body_inc_rounds: int  # regular increase rounds worked on body panels
+    sleeve_inc_rounds: int  # regular increase rounds worked on sleeve panels (<= body_inc_rounds once sleeves are held)
+    body_schedule: List[bool]  # True on rows where body panels increase
+    sleeve_schedule: List[bool]  # True on rows where sleeve panels increase (False once sleeves are held)
     target: Dict[str, int]  # {"body": ..., "sleeve": ...} important: this is pre-underarm pickup sts
 
     

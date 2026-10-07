@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from .helpers import calculate_short_rows
 
@@ -30,6 +30,13 @@ class ShortRowPlan:
     guard_sts_before_front_raglan: int = 2
     max_short_rows: int = 10  # max individual rows (not pairs)
 
+    # Optional: pairs already decided elsewhere (e.g. Sweater, which needs the
+    # count up front to size the initial cast-on split). When given, this is
+    # used as-is instead of recomputing from back_sts/shoulder_sts, so the
+    # turn positions rendered here always agree with whatever split math used
+    # to decide stitch totals - the two must not diverge.
+    precomputed_pairs: Optional[int] = None
+
     # ---------- basic props ----------
 
     @property
@@ -40,8 +47,12 @@ class ShortRowPlan:
     @property
     def _max_pairs(self) -> int:
         """
-        Maximum number of short-row pairs, using the centralized calculation.
+        Maximum number of short-row pairs, using the centralized calculation
+        (or the precomputed value, if one was supplied).
         """
+        if self.precomputed_pairs is not None:
+            return self.precomputed_pairs
+
         sleeve_sts = min(self.right_shoulder_sts, self.left_shoulder_sts)
         individual_rows = calculate_short_rows(
             depth_cm=self.short_row_depth_cm,

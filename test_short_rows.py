@@ -1,97 +1,86 @@
 """
-Test script to verify short row calculations.
+Test script to verify short-row calculations.
 
-Example test case (XS size):
-- Gauge: 20 sts x 28 rows = 10 x 10 cm (2.0 sts/cm, 2.8 rows/cm)
-- Cast-on: 100 sts total
-- 5 short row rounds
-- Initial split: Back 22, Front 32, Sleeves 19 each (+ 8 raglan)
-- After short rows: Back 32, Front 32, Sleeves 24 each (+ 8 raglan) = 120 sts
+Short-row math (count, split adjustment) now lives entirely in
+Sweater._compute_initial_split_and_short_rows() / helpers.calculate_short_rows()
+(see CLAUDE.md). CastOnPlan is just a data holder for whatever split/
+short_row_count Sweater.build() precomputed and passed in, so these tests
+drive everything through Sweater(...).build() rather than constructing
+CastOnPlan directly.
+
+neck_sts_override pins the cast-on to an exact stitch count (100 here),
+sidestepping NECK_SIZES/rounding so the numbers below are reproducible
+regardless of size-table changes.
 """
 
-from .caston import CastOnPlan
+from .raglan import Sweater
+
 
 def test_xs_with_short_rows():
-    """Test short rows with XS size example."""
+    """Short rows should bring front and back to the same stitch count."""
 
-    # XS size parameters
-    gauge_sts_per_cm = 2.0  # 20 sts / 10 cm
-    gauge_rows_per_cm = 2.8  # 28 rows / 10 cm
-
-    # Neck circumference to give 100 st cast-on
-    # Working backwards: 100 sts total = neck sts
-    neck_cm = 100 / gauge_sts_per_cm  # 50 cm
-
-    # Create CastOnPlan with short rows
-    co = CastOnPlan(
+    sw = Sweater(
+        sts_per_10cm=20,   # 2.0 sts/cm
+        rows_per_10cm=28,  # 2.8 rows/cm
         size="XS",
-        gauge_sts_per_cm=gauge_sts_per_cm,
-        gauge_rows_per_cm=gauge_rows_per_cm,
-        rib_multiple=2,
+        neck_sts_override=100,
         raglan_lines=4,
         raglan_line_sts=2,
-        custom_neck_cm=neck_cm,
         use_short_rows=True,
-        short_row_depth_cm=5.0,  # Approximate based on 5 rounds
-        guard_sts_before_front_raglan=2,
+        short_row_depth_cm=5.0,
     )
+    parts = sw.build()
+    co = parts["cast_on"]
 
-    # Get results
     neck_sts = co.neck_sts
     split = co.split_map()
-    R = co.short_row_rounds()
+    pairs = co.short_row_count // 2  # short_row_count is individual rows
 
     print("=== XS SIZE SHORT ROW TEST ===")
     print(f"Cast-on: {neck_sts} sts")
-    print(f"Short row rounds: {R}")
+    print(f"Short row rounds (pairs): {pairs}")
     print(f"\nInitial split (at cast-on):")
     print(f"  Back: {split['back']}")
     print(f"  Front: {split['front']}")
     print(f"  Sleeve L: {split['sleeve_L']}")
     print(f"  Sleeve R: {split['sleeve_R']}")
-    print(f"  Plus raglan: 8 sts")
-    print(f"  Total: {split['back'] + split['front'] + split['sleeve_L'] + split['sleeve_R'] + 8}")
+    print(f"  Plus raglan: {sw.raglan_lines * sw.raglan_line_sts} sts")
 
-    # Calculate final split (after short rows)
-    final_back = split['back'] + 2 * R
-    final_front = split['front']  # unchanged
-    final_sleeve_l = split['sleeve_L'] + R
-    final_sleeve_r = split['sleeve_R'] + R
+    # Final split (after short rows): back and both sleeves grow, front doesn't.
+    final_back = split["back"] + 2 * pairs
+    final_front = split["front"]
+    final_sleeve_l = split["sleeve_L"] + pairs
+    final_sleeve_r = split["sleeve_R"] + pairs
 
-    print(f"\nFinal split (after {R} short row rounds):")
+    print(f"\nFinal split (after {pairs} short row rounds):")
     print(f"  Back: {final_back}")
     print(f"  Front: {final_front}")
     print(f"  Sleeve L: {final_sleeve_l}")
     print(f"  Sleeve R: {final_sleeve_r}")
-    print(f"  Plus raglan: 8 sts")
-    print(f"  Total: {final_back + final_front + final_sleeve_l + final_sleeve_r + 8}")
-
-    # Verify key properties
-    print(f"\nVerification:")
-    print(f"  Front:Back ratio after SR: {final_front}:{final_back} (should be equal)")
-    assert final_front == final_back, "Front and back should be equal after short rows!"
-    print(f"  ✓ Front equals back")
 
     assert neck_sts == 100, f"Cast-on should be 100, got {neck_sts}"
-    print(f"  ✓ Cast-on matches target (100 sts)")
+    print("  ✓ Cast-on matches target (100 sts)")
+
+    assert final_front == final_back, "Front and back should be equal after short rows!"
+    print("  ✓ Front equals back after short rows")
 
     print("\n✓ All tests passed!")
 
 
 def test_no_short_rows():
-    """Test that no short rows gives standard split."""
+    """With no short rows, the initial 3:3:2:2-style split keeps front == back."""
 
-    gauge_sts_per_cm = 2.0
-    neck_cm = 50.0  # 100 sts
-
-    co = CastOnPlan(
+    sw = Sweater(
+        sts_per_10cm=20,
+        rows_per_10cm=28,
         size="XS",
-        gauge_sts_per_cm=gauge_sts_per_cm,
-        gauge_rows_per_cm=2.8,
-        rib_multiple=2,
-        custom_neck_cm=neck_cm,
+        neck_sts_override=100,
+        raglan_lines=4,
+        raglan_line_sts=2,
         use_short_rows=False,
     )
+    parts = sw.build()
+    co = parts["cast_on"]
 
     neck_sts = co.neck_sts
     split = co.split_map()
@@ -103,15 +92,9 @@ def test_no_short_rows():
     print(f"  Front: {split['front']}")
     print(f"  Sleeve L: {split['sleeve_L']}")
     print(f"  Sleeve R: {split['sleeve_R']}")
-    print(f"  Plus raglan: 8 sts")
 
-    # With no short rows, front and back should follow the 3:3 ratio
-    total_sections = split['back'] + split['front'] + split['sleeve_L'] + split['sleeve_R']
-    print(f"  Total sections: {total_sections} (+ 8 raglan = {total_sections + 8})")
-    print(f"\nFront:Back ratio: {split['front']}:{split['back']} (should be equal for 3:3 ratio)")
-
-    # In the standard 3:3:2:2 ratio, front should equal back
-    assert split['front'] == split['back'], "Front should equal back with no short rows"
+    assert co.short_row_count == 0, "No short rows requested, so count should be 0"
+    assert split["front"] == split["back"], "Front should equal back with no short rows"
     print("\n✓ Test passed!")
 
 

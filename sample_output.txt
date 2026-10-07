@@ -5,30 +5,33 @@ Gauge: 22.0 sts / 30.0 rows per 10 cm (2.20 sts/cm, 3.00 rows/cm)
 — CAST-ON & MARKERS —
 Cast on 84 sts. Join to work in the round, place BOR (beginning of round) marker.
 Place section markers as follows:
-  - Back left: 11 sts, PM
+  - Back left: 13 sts, PM
   - Raglan: 2 sts, PM
-  - Sleeve left: 16 sts, PM
+  - Sleeve left: 12 sts, PM
   - Raglan: 2 sts, PM
-  - Front: 22 sts, PM
+  - Front: 26 sts, PM
   - Raglan: 2 sts, PM
-  - Sleeve right: 16 sts, PM
+  - Sleeve right: 12 sts, PM
   - Raglan: 2 sts, PM
-  - Back right: 11 sts (to BOR)
+  - Back right: 13 sts (to BOR)
 Work 24 rows (8.0 cm) in rib for neckband.
 
 — RAGLAN YOKE —
-Work raglan increases every 2 round(s) for 40 increase rounds (≈ 80 rows total).
+Work raglan increases (body and sleeves) every 2 round(s) for 23 increase rounds.
+Then continue raglan increases on the body only (hold sleeve stitches) every 2 round(s) for 15 more increase rounds.
+(≈ 76 rows total.)
 
 — SEPARATION —
-[Separator at row 80]Body: 216 sts (front: 108, back: 108), Sleeves: 96 sts each, Underarm cast-on: 6 sts per side.
+[Separator at row 76]Body: 216 sts (front: 108, back: 108), Sleeves: 58 sts each, Underarm cast-on: 6 sts per side.
 
 — BODY —
-Work body 120 rows (≈ 40.0 cm).
+Work body 120 rows (≈ 40.0 cm), fit: straight.
 Body after separation: 216 sts (front 108 / back 108).
+Work body straight to hem (no shaping).
 
 — SLEEVES —
-Each sleeve starts with 96 sts; work 135 rows (≈ 45.0 cm).
-Decrease to cuff 66 sts via 15 dec rounds. Rib tail ≈ 6.0 cm.
+Each sleeve starts with 58 sts; work 135 rows (≈ 45.0 cm).
+Decrease to cuff 40 sts via 9 dec rounds. Rib tail ≈ 6.0 cm.
 
 === WITH SHORT ROWS ===
 Size M
@@ -37,52 +40,55 @@ Gauge: 22.0 sts / 30.0 rows per 10 cm (2.20 sts/cm, 3.00 rows/cm)
 — CAST-ON & MARKERS —
 Cast on 84 sts. Join to work in the round, place BOR (beginning of round) marker.
 Place section markers as follows:
-  - Back left: 9 sts, PM
+  - Back left: 11 sts, PM
   - Raglan: 2 sts, PM
-  - Sleeve left: 15 sts, PM
+  - Sleeve left: 12 sts, PM
   - Raglan: 2 sts, PM
-  - Front: 28 sts, PM
+  - Front: 30 sts, PM
   - Raglan: 2 sts, PM
-  - Sleeve right: 15 sts, PM
+  - Sleeve right: 12 sts, PM
   - Raglan: 2 sts, PM
-  - Back right: 9 sts (to BOR)
+  - Back right: 11 sts (to BOR)
 Work 24 rows (8.0 cm) in rib for neckband.
 
 — BACK-NECK SHORT-ROW SHAPING —
 (Raglan line = 2 sts between markers)
 Short row 1 (RS): From BOR, k to marker, M1R, k 2 raglan sts, M1L, k 2 sts into shoulder. Turn.
 Short row 2 (WS): P to marker (past BOR), M1R, p 2 raglan sts, M1L, p 2 sts into shoulder. Turn.
-Short row 3 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 2 sts past last RS turn. Turn.
-Short row 4 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 2 sts past last WS turn. Turn.
+Short row 3 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 1 sts past last RS turn. Turn.
+Short row 4 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 1 sts past last WS turn. Turn.
 Short row 5 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 2 sts past last RS turn. Turn.
 Short row 6 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 2 sts past last WS turn. Turn.
-Short row 7 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 3 sts past last RS turn. Turn.
-Short row 8 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 3 sts past last WS turn. Turn.
-Short row 9 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 2 sts past last RS turn. Turn.
-Short row 10 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 2 sts past last WS turn. Turn.
+Short row 7 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 2 sts past last RS turn. Turn.
+Short row 8 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 2 sts past last WS turn. Turn.
+Short row 9 (RS): K to marker, M1R, k 2 raglan sts, M1L, k 1 sts past last RS turn. Turn.
+Short row 10 (WS): P to marker, M1R, p 2 raglan sts, M1L, p 1 sts past last WS turn. Turn.
 
 After short rows (10 rows worked):
-  - Back: 28 sts
-  - Front: 28 sts
-  - Sleeve left: 20 sts
-  - Sleeve right: 20 sts
+  - Back: 32 sts
+  - Front: 30 sts
+  - Sleeve left: 17 sts
+  - Sleeve right: 17 sts
   - Total: 104 sts
 
 — RAGLAN YOKE —
-Work raglan increases every 2 round(s) for 42 increase rounds (≈ 84 rows total).
+Work raglan increases (body and sleeves) every 2 round(s) for 23 increase rounds.
+Then continue raglan increases on the body only (hold sleeve stitches) every 2 round(s) for 13 more increase rounds.
+(≈ 82 rows total.)
 
 — SEPARATION —
-[Separator at row 84]Body: 216 sts (front: 108, back: 108), Sleeves: 94 sts each, Underarm cast-on: 6 sts per side.
+[Separator at row 82]Body: 218 sts (front: 108, back: 110), Sleeves: 62 sts each, Underarm cast-on: 6 sts per side.
 
 — BODY —
-Work body 120 rows (≈ 40.0 cm).
-Body after separation: 216 sts (front 108 / back 108).
+Work body 120 rows (≈ 40.0 cm), fit: straight.
+Body after separation: 218 sts (front 108 / back 110).
+Work body straight to hem (no shaping).
 
 — SLEEVES —
-Each sleeve starts with 94 sts; work 135 rows (≈ 45.0 cm).
-Decrease to cuff 66 sts via 14 dec rounds. Rib tail ≈ 6.0 cm.
+Each sleeve starts with 62 sts; work 135 rows (≈ 45.0 cm).
+Decrease to cuff 42 sts via 10 dec rounds. Rib tail ≈ 6.0 cm.
 
 === SPLIT COMPARISON ===
-Base split (no SR):        {'front': 22, 'back': 22, 'sleeve_L': 16, 'sleeve_R': 16}
-SR-adjusted split:         {'front': 28, 'back': 18, 'sleeve_L': 15, 'sleeve_R': 15}
+Base split (no SR):        {'front': 26, 'back': 26, 'sleeve_L': 12, 'sleeve_R': 12}
+SR-adjusted split:         {'front': 30, 'back': 22, 'sleeve_L': 12, 'sleeve_R': 12}
 Short row count:          10 individual rows (5 pairs)

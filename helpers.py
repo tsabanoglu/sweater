@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Dict, List, Tuple
 import math
 
+from .constants import FRONT_BACK_SLEEVE_RATIO
+
 
 
 ### Neck & body target helpers
@@ -28,8 +30,8 @@ def body_target_stitches(chest_cm: float, gauge_sts_per_cm: float) -> int:
 def _round_to_multiple(x: int, m: int = 2) -> int:
     return int(round(x / m) * m)
 
-def _split_neck(neck_sts: int, raglan_lines: int = 4, raglan_line_sts: int = 2, 
-                ratio: Tuple[int, int, int, int] = (3, 3, 2, 2)) -> Dict[str, int]:
+def _split_neck(neck_sts: int, raglan_lines: int = 4, raglan_line_sts: int = 2,
+                ratio: Tuple[int, int, int, int] = FRONT_BACK_SLEEVE_RATIO) -> Dict[str, int]:
 
     """
     Split neck stitches into back, front, and sleeves based on ratio.
@@ -64,6 +66,18 @@ def _schedule(inc_rounds: int, inc_every: int) -> List[bool]:
 
     rows = inc_rounds * inc_every
     return [i % inc_every == 0 for i in range(rows)]
+
+
+def _panel_schedule(rounds_needed: int, regular_rounds: int, inc_every: int) -> List[bool]:
+    """
+    Boolean list (len regular_rounds * inc_every), True on rows where this panel
+    increases. The panel increases on the first `rounds_needed` scheduled slots
+    (out of `regular_rounds` total slots), then holds for the remainder - this
+    lets body and sleeves share early increase rounds and diverge later once one
+    side reaches its target first.
+    """
+    total_rows = regular_rounds * inc_every
+    return [(r % inc_every == 0) and (r // inc_every < rounds_needed) for r in range(total_rows)]
 
 
 ### Separator helpers
@@ -267,6 +281,7 @@ __all__ = [
     "_split_neck",
     "_inc_rounds_needed",
     "_schedule",
+    "_panel_schedule",
     "_evenly_spaced_rows",
     "_even",
     "_assert_nonneg",
